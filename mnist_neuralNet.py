@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 
 from tensorflow.examples.tutorials.mnist import input_data
@@ -42,7 +41,9 @@ class NeuralNet:
 
         self.predicted_class = tf.add(tf.matmul(self.l3, self.output_layer['weights']), self.output_layer['biases'])
 
-        return self.predicted_class
+        self.predictionY = tf.nn.softmax(self.predicted_class)
+
+        return self.predicted_class,self.predictionY
 
 mnist = input_data.read_data_sets(train_dir=r'D:\DeepLearning_theory_appl\data\mnist', one_hot=False)
 
@@ -53,13 +54,14 @@ num_nodehl1 = 700
 num_nodehl2 = 700
 num_nodehl3 = 700
 train_batch_size = 128  # manipulate weights by 128 features at a time
-epochs = 50
+epochs = 20
+
 
 
 def train():
     neuralNet_ = NeuralNet(n_classes, image_size, learningRate)
     print("Neural Net initialized")
-    predictedClasses = neuralNet_.model(num_nodehl1, num_nodehl2, num_nodehl3)
+    predictedClasses,predictionY = neuralNet_.model(num_nodehl1, num_nodehl2, num_nodehl3)
     """
     cross-entropy is a continuous function that is always positive. 
     If the predicted y equals the true y, cross-entropy equals zero.
@@ -71,6 +73,8 @@ def train():
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=predictedClasses, labels=neuralNet_.Y)
     cost = tf.reduce_mean(cross_entropy)
     optimizer = tf.train.GradientDescentOptimizer(learning_rate=learningRate).minimize(cost)
+
+    saver = tf.train.Saver()
 
     with tf.Session() as sess:
         # initialize the weights and biases before optimization starts
@@ -92,13 +96,43 @@ def train():
                 _, i_loss = sess.run([optimizer, cost], feed_dict=fd_train)
 
                 iter_loss += i_loss
-            print('iter', iter, 'of', epochs, 'loss: ', iter_loss)
+            print('Epoch', iter, 'of', epochs, 'loss: ', iter_loss)
 
         correct = tf.nn.in_top_k(predictedClasses, neuralNet_.Y, 1)
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
 
-        print('\ntraining set accuracy: ',
+        print('\nTraining Set Accuracy: ',
               accuracy.eval({neuralNet_.X: mnist.train.images, neuralNet_.Y: mnist.train.labels}))
-        print('test set accuracy: ', accuracy.eval({neuralNet_.X: mnist.test.images, neuralNet_.Y: mnist.test.labels}))
+        print('Test Set Accuracy: ', accuracy.eval({neuralNet_.X: mnist.test.images, neuralNet_.Y: mnist.test.labels}))
+
+        save_path = saver.save(sess, "/tmp/model.ckpt")
+        print("Model saved in path: %s" % save_path)
+
+
+        predict(mnist,saver,predictedClasses,neuralNet_)
+
+
+
+def predict(mnist,saver,predictedClasses,neuralNet_):
+
+    tf.reset_default_graph()
+
+    # Add ops to save and restore all the variables.
+
+
+    with tf.Session() as sess:
+        # Restore variables from disk.
+        saver.restore(sess, "/tmp/model.ckpt")
+
+        print ("Test Labels",mnist.test.labels[0])
+        predictedClasses_Y = sess.run(predictedClasses,
+                                      {neuralNet_.X: mnist.test.images, neuralNet_.Y: mnist.test.labels})
+        print ("Prediction",predictedClasses_Y[0])
+
+    print("Model restored.")
+
 
 train()
+
+
+
